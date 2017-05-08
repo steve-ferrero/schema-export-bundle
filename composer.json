@@ -12,5 +12,10 @@
     "minimum-stability": "dev",
     "require": {
         "symfony/symfony": "~2.8|~3.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "WebAtrio\\Bundle\\SchemaExportBundle\\": ""
+        }
     }
 }
