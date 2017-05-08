@@ -11,7 +11,8 @@ This bundle is compatible with Symfony 2.8/3.0 or higher.
     composer require web-atrio/schema-export-bundle
 
 Register the command in your `AppKernel.php`:
-new WebAtrio\Bundle\SchemaExportBundle\SchemaExportBundle(),
+
+    new WebAtrio\Bundle\SchemaExportBundle\SchemaExportBundle(),
 
 ## Usage
 php bin/console web-atrio:schema:generate:ts {your generate path}
