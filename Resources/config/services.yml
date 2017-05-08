@@ -1,0 +1,15 @@
+services:
+#    schema_export.example:
+#        class: WebAtrio\Bundle\SchemaExportBundle\Example
+#        arguments: ["@service_id", "plain_value", "%parameter%"]
+
+    schema_export.json_command:
+        class: WebAtrio\Bundle\SchemaExportBundle\Command\JsonCommand
+        tags:
+            -  { name: console.command }
+        arguments: [ "@=service('doctrine.orm.entity_manager').getMetadataFactory().getAllMetadata()" ]
+    schema_export.ts_command:
+        class: WebAtrio\Bundle\SchemaExportBundle\Command\TypeScriptCommand
+        tags:
+            -  { name: console.command }
+        arguments: [ "@=service('doctrine.orm.entity_manager').getMetadataFactory().getAllMetadata()" ]

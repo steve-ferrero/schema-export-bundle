@@ -1,0 +1,16 @@
+{
+    "name": "web-atrio/schema-export-bundle",
+    "description": "Symfony3 schema exporter command (json and typeScript)",
+    "type": "symfony-bundle",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Steve Ferrero",
+            "email": "steve.ferrero@web-atrio.com"
+        }
+    ],
+    "minimum-stability": "dev",
+    "require": {
+        "symfony/symfony": "~2.8|~3.0"
+    }
+}
