@@ -11,6 +11,7 @@ use Symfony\Component\Filesystem\Exception\FileNotFoundException;
 use Symfony\Component\Filesystem\Exception\IOException;
 use WebAtrio\Bundle\SchemaExportBundle\ErrorConstants;
 use WebAtrio\Bundle\SchemaExportBundle\Field;
+use WebAtrio\Bundle\SchemaExportBundle\Utils;
 
 class TypeScriptCommand extends ContainerAwareCommand {
 
@@ -36,7 +37,6 @@ class TypeScriptCommand extends ContainerAwareCommand {
                 ->setName('web-atrio:schema:generate:ts')
                 ->setDescription('Convert doctrine entities into json')
                 ->addArgument('destination_folder', InputArgument::REQUIRED, 'In which folder to generate the .json files ?');
-        ;
     }
 
     protected function execute(InputInterface $input, OutputInterface $output) {
@@ -50,7 +50,7 @@ class TypeScriptCommand extends ContainerAwareCommand {
         $output->writeln('<info>Generating TypeScript....</info>');
         foreach ($this->allMetaData as $singleMeta) {
             $this->output->writeln($singleMeta->getName());
-            $className = $this->getClassName($singleMeta->getName());
+            $className = Utils::getClassName($singleMeta->getName());
             $fields = $singleMeta->getFieldNames();
             $file = $this->destinationFolder . '/' . $className . '.ts';
             $content = "class $className {\n\r";
@@ -60,12 +60,45 @@ class TypeScriptCommand extends ContainerAwareCommand {
             $assessor = "";
             $first = true;
             $filedList = array();
+
+            // Generate all fields
             foreach ($fields as $field) {
                 $fieldType = $this->DoctrineToTypescriptTypeConverter($singleMeta->getFieldMapping($field)['type']);
                 $nullable = false;
                 if (array_key_exists("nullable", $singleMeta->getFieldMapping($field))) {
                     $nullable = $singleMeta->getFieldMapping($field)['nullable'];
                 }
+                $filedList[] = new Field($field, $fieldType, $nullable);
+                if (!$nullable) {
+                    $declaration .= "\tprivate _$field: $fieldType;\n\r";
+                    if (!$first) {
+                        $constructor_declaration .= ", ";
+                    }
+                    $constructor_declaration .= "_$field: $fieldType";
+                    $constructor_content .= "\t\tthis._$field = $field;\n";
+                    $first = false;
+                } else {
+                    $declaration .= "\tprivate _$field: $fieldType = null;\n\r";
+                }
+
+                $assessor .= "\tget $field: $fieldType {\n";
+                $assessor .= "\t\treturn  this._$field;\n";
+                $assessor .= "\t}\n\r";
+                $assessor .= "\tset $field(value: $fieldType) {\n";
+                $assessor .= "\t\tthis._$field = value;\n";
+                $assessor .= "\t}\n\r";
+            }
+
+            // Generate all association
+            $filedList = array();
+            $associations = $singleMeta->getAssociationMappings();
+            foreach ($associations as $association) {
+                $nullable = false;
+                if (array_key_exists("joinColumns", $association) && $association["joinColumns"] && array_key_exists("nullable", $association["joinColumns"][0]) && $association["joinColumns"][0]["nullable"]) {
+                    $nullable = true;
+                }
+                $field = $association["fieldName"];
+                $fieldType = Utils::getClassName($association["targetEntity"]);
                 $filedList[] = new Field($field, $fieldType, $nullable);
                 if (!$nullable) {
                     $declaration .= "\tprivate _$field: $fieldType;\n\r";
@@ -112,11 +145,6 @@ class TypeScriptCommand extends ContainerAwareCommand {
             default:
                 return $type;
         }
-    }
-
-    public function getClassName($namespace) {
-        $path = explode('\\', $namespace);
-        return array_pop($path);
     }
 
 }

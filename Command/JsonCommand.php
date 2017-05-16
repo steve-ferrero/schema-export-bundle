@@ -10,6 +10,11 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Filesystem\Exception\FileNotFoundException;
 use Symfony\Component\Filesystem\Exception\IOException;
+use WebAtrio\Bundle\SchemaExportBundle\Field;
+use WebAtrio\Bundle\SchemaExportBundle\Utils;
+use Symfony\Component\Serializer\Serializer;
+use Symfony\Component\Serializer\Encoder\JsonEncoder;
+use Symfony\Component\Serializer\Normalizer\ObjectNormalizer;
 
 class JsonCommand extends ContainerAwareCommand {
 
@@ -17,6 +22,8 @@ class JsonCommand extends ContainerAwareCommand {
      * @var ClassMetadata[]
      */
     private $allMetaData;
+    private $destinationFolder;
+    private $output;
 
     public function __construct(array $allMetaData) {
         if ($allMetaData == []) {
@@ -33,47 +40,54 @@ class JsonCommand extends ContainerAwareCommand {
                 ->setName('web-atrio:schema:generate:json')
                 ->setDescription('Convert doctrine entities into json')
                 ->addArgument('destination_folder', InputArgument::REQUIRED, 'In which folder to generate the .json files ?');
-        ;
     }
 
     protected function execute(InputInterface $input, OutputInterface $output) {
-        $destinationFolder = $input->getArgument('destination_folder');
-        if (!file_exists($destinationFolder)) {
+        $this->destinationFolder = $input->getArgument('destination_folder');
+        $this->output = $output;
+        if (!file_exists($this->destinationFolder)) {
             throw new FileNotFoundException(ErrorConstants::CONVERT_ERROR_FOLDER_NOT_FOUND);
-        } elseif (!is_writable($destinationFolder)) {
+        } elseif (!is_writable($this->destinationFolder)) {
             throw new IOException(ErrorConstants::CONVERT_ERROR_FOLDER_NOT_WRITABLE);
         }
         $output->writeln('<info>Generating Json....</info>');
         foreach ($this->allMetaData as $singleMeta) {
-            $output->writeln($singleMeta->getName());
-            $metadata = $this->getContainer()->get('validator')->getMetadataFor($singleMeta->getName());
-            $constraints = $metadata->getConstrainedProperties();
-            if (sizeof($constraints) > 0) {
-                foreach ($constraints as $constraint) {
-                    $output->writeln($constraint);
-                    $output->writeln(json_encode($metadata->getPropertyMetadata($constraint)));
-                    $output->writeln(json_encode($metadata->getPropertyMetadata($constraint)[0]->getPropertyValue("constraints")));
+            $this->output->writeln($singleMeta->getName());
+            $className = Utils::getClassName($singleMeta->getName());
+
+            $file = $this->destinationFolder . '/' . $className . '.json';
+            $fields = $singleMeta->getFieldNames();
+            $list = array();
+
+            // Generate all fields
+            foreach ($fields as $field) {
+                $currentField = new Field($field, $singleMeta->getFieldMapping($field)['type']);
+                if (array_key_exists("nullable", $singleMeta->getFieldMapping($field))) {
+                    $currentField->setNullable($singleMeta->getFieldMapping($field)['nullable']);
                 }
-            }
-        }
-        $file = $destinationFolder . '/' . $singleMeta->getName() . '.json';
-        $fields = $singleMeta->getFieldNames();
-        $list = array();
-        foreach ($fields as $field) {
-            $obj = new \stdClass;
-            $obj->name = $field;
-            $obj->type = $singleMeta->getFieldMapping($field)['type'];
-            if (array_key_exists("nullable", $singleMeta->getFieldMapping($field))) {
-                if ($singleMeta->getFieldMapping($field)['nullable']) {
-                    $obj->required = true;
+                if (array_key_exists("length", $singleMeta->getFieldMapping($field))) {
+                    $currentField->setLength($singleMeta->getFieldMapping($field)['length']);
                 }
+                $list[] = $currentField;
             }
-            if (array_key_exists("length", $singleMeta->getFieldMapping($field))) {
-                $obj->length = $singleMeta->getFieldMapping($field)['length'];
+
+            // Generate all association
+            $associations = $singleMeta->getAssociationMappings();
+            foreach ($associations as $association) {
+                $field = $association["fieldName"];
+                $fieldType = Utils::getClassName($association["targetEntity"]);
+                $nullable = (array_key_exists("joinColumns", $association) && $association["joinColumns"] && array_key_exists("nullable", $association["joinColumns"][0]) && $association["joinColumns"][0]["nullable"]);
+                $list[] = new Field($field, $fieldType, $nullable);
             }
-            $list[] = $obj;
+
+            $encoders = array(new JsonEncoder());
+            $normalizers = array(new ObjectNormalizer());
+
+            $serializer = new Serializer($normalizers, $encoders);
+
+            $content = $serializer->serialize($list, 'json');
+            file_put_contents($file, $content);
         }
-        file_put_contents($file, json_encode($list, JSON_PRETTY_PRINT));
     }
 
 }
