@@ -15,8 +15,13 @@ Register the command in your `AppKernel.php`:
     new WebAtrio\Bundle\SchemaExportBundle\SchemaExportBundle(),
 
 ## Usage
-php bin/console web-atrio:schema:generate:ts {your generate path}
 
+### TypeScript export
+    php bin/console web-atrio:schema:generate:ts {your generate path}
+    
+### Json export   
+    php bin/console web-atrio:schema:generate:json {your generate path}
+    
 ## Author
 Steve Ferrero
 
